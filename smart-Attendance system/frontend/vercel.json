@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://smart-attendance-system-nomi.onrender.com/api/:path*"
+    },
+    {
+      "source": "/static/:path*",
+      "destination": "https://smart-attendance-system-nomi.onrender.com/static/:path*"
+    }
+  ]
+}
