@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Sign in | Smart Attendance{% endblock %}
+{% block content %}
+<section class="login-page">
+    <div class="login-shell">
+        <aside class="login-intro">
+            <div class="login-image-credit">CLASSROOM / LIVE</div>
+            <div class="login-brand-row"><div class="login-logo">SA</div><span class="live-pill"><span class="live-dot"></span>System online</span></div>
+            <div class="eyebrow">Smart Attendance / Control room</div>
+            <h1>Every presence<br><em>counts.</em></h1>
+            <p>One calm workspace for your class list, daily marking, and attendance insights.</p>
+            <div class="login-metrics"><div><strong>01</strong><span>Admin workspace</span></div><div><strong>24/7</strong><span>Secure access</span></div></div>
+            <div class="intro-rule"></div>
+            <div class="intro-note"><span class="shield-mark">+</span><span>Attendance workspace<br><strong>Ready for today</strong></span></div>
+            <div class="login-image-caption"><span class="caption-line"></span><span>One clear view of every class.</span></div>
+        </aside>
+        <div class="login-box">
+            <div class="login-topline"><div class="form-kicker">Admin sign in</div><span class="secure-label">Encrypted session</span></div>
+            <h2>Welcome back</h2>
+            <p class="muted">Sign in to manage today&apos;s attendance.</p>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}
+            {% endwith %}
+            <form method="POST">
+                <div class="field-row"><label for="username">Username</label><span class="field-tag">Admin ID</span></div>
+                <div class="input-wrap"><span class="field-icon">@</span><input id="username" type="text" name="username" autocomplete="username" placeholder="Enter your username" required></div>
+                <div class="field-row"><label for="password">Password</label><span class="field-tag">Secure</span></div>
+                <div class="input-wrap"><span class="field-icon">*</span><input id="password" type="password" name="password" autocomplete="current-password" placeholder="Enter your password" required><button class="password-toggle" type="button" aria-label="Show password" data-target="password">Show</button></div>
+                <div class="field-row"><label for="role">Role</label><span class="field-tag">Access</span></div>
+                <div class="input-wrap select-wrap">
+                    <select id="role" name="role">
+                        <option value="admin">Admin</option>
+                        <option value="teacher">Teacher</option>
+                        <option value="student">Student</option>
+                    </select>
+                </div>
+                <div class="login-options"><span class="session-status"><span class="status-dot"></span>Protected sign-in</span><span class="session-chip">30 min session</span></div>
+                <button class="btn login-submit" type="submit"><span>Sign in to dashboard</span><span aria-hidden="true">-&gt;</span></button>
+            </form>
+            <div class="login-security"><strong>Protected session</strong><span>Sessions expire after 30 minutes of inactivity. Always log out when you are finished.</span></div>
+        </div>
+    </div>
+</section>
+<script>
+document.querySelectorAll('.password-toggle').forEach((button) => {
+    button.addEventListener('click', () => {
+        const field = document.getElementById(button.dataset.target);
+        const isVisible = field.type === 'text';
+        field.type = isVisible ? 'password' : 'text';
+        button.textContent = isVisible ? 'Show' : 'Hide';
+        button.setAttribute('aria-label', isVisible ? 'Show password' : 'Hide password');
+    });
+});
+</script>
+{% endblock %}

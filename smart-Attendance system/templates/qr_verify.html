@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Verify Attendance | Smart Attendance{% endblock %}
+{% block content %}
+<div class="qr-verify-shell">
+    <div class="eyebrow">Student verification</div>
+    {% if invalid_qr %}
+        <h1>QR code is invalid</h1><p class="muted">Please scan a fresh code from your attendance administrator.</p>
+    {% elif student %}
+        <div class="success-mark">OK</div><h1>Attendance marked</h1><p class="muted"><strong>{{ student.name }}</strong> is Present for {{ attendance_date }}.</p><a class="btn" href="{{ url_for('scan_qr_attendance', token=request.args.get('token', '')) }}">Done</a>
+    {% else %}
+        <h1>Verify your attendance</h1><p class="muted">Enter the details registered by your administrator for {{ attendance_date }}. This QR can be used only once.</p>
+        {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+        <form method="POST"><input type="hidden" name="token" value="{{ token }}"><label for="roll_number">Roll number</label><input id="roll_number" name="roll_number" required autocomplete="off"><label for="registration_number">Registration number</label><input id="registration_number" name="registration_number" required autocomplete="off"><button class="btn qr-submit" type="submit">Verify and mark Present</button></form>
+    {% endif %}
+</div>
+{% endblock %}

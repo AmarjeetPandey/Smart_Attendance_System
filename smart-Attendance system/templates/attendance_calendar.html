@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Attendance Calendar | Smart Attendance{% endblock %}
+{% block content %}
+<div class="page-heading">
+    <div>
+        <div class="eyebrow">Attendance calendar</div>
+        <h1>Monthly overview</h1>
+        <p class="muted">See attendance trends and statuses by day across the month.</p>
+    </div>
+    <div class="inline-actions">
+        <a class="btn secondary" href="{{ url_for('attendance_calendar', month=prev_month.isoformat()) }}">Previous</a>
+        <a class="btn secondary" href="{{ url_for('attendance_calendar', month=next_month.isoformat()) }}">Next</a>
+    </div>
+</div>
+
+<section class="panel">
+    <div class="calendar-header">
+        <h2>{{ month_date.strftime('%B %Y') }}</h2>
+    </div>
+    <div class="calendar-grid">
+        <div class="calendar-day head">Sun</div>
+        <div class="calendar-day head">Mon</div>
+        <div class="calendar-day head">Tue</div>
+        <div class="calendar-day head">Wed</div>
+        <div class="calendar-day head">Thu</div>
+        <div class="calendar-day head">Fri</div>
+        <div class="calendar-day head">Sat</div>
+
+        {% for week_start in range(0, month_days|length, 7) %}
+            {% for item in month_days[week_start:week_start+7] %}
+            <div class="calendar-day {% if item.date.month != month_date.month %}muted{% endif %}">
+                <div class="calendar-date">{{ item.day }}</div>
+                {% if item.status %}
+                    {% for status, count in item.status.items() %}
+                    <span class="calendar-pill {{ status|lower }}">{{ status }}: {{ count }}</span>
+                    {% endfor %}
+                {% else %}
+                    <span class="calendar-pill empty">No data</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

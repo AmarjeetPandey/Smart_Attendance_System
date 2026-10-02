@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Enroll face | Smart Attendance{% endblock %}
+{% block content %}
+<div class="page-heading"><div><div class="eyebrow">Face enrollment</div><h1>{{ student.name }}</h1><p class="muted">Roll number {{ student.roll_number }}. Capture one clear face image for camera attendance.</p></div><a class="btn secondary" href="{{ url_for('students') }}">Back to students</a></div>
+<section class="face-layout">
+    <div class="panel camera-panel">
+        <div class="camera-frame"><video id="camera" autoplay muted playsinline></video><div class="camera-guide" aria-hidden="true"></div></div>
+        <p id="camera-status" class="camera-status">Loading face detection...</p>
+        <form method="POST" id="enroll-form"><input type="hidden" name="descriptor" id="descriptor"><button class="btn" id="capture-button" type="submit" disabled>Capture and save face</button></form>
+        {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+    </div>
+    <aside class="panel face-help"><h2>Enrollment checklist</h2><p>Keep one face centered in the guide with even light. Remove masks or dark glasses, then hold still for capture.</p><div class="face-flow"><span>Camera</span><b>&rarr;</b><span>Face descriptor</span><b>&rarr;</b><span>Student profile</span></div></aside>
+</section>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
+<script>
+const camera = document.getElementById('camera');
+const statusText = document.getElementById('camera-status');
+const captureButton = document.getElementById('capture-button');
+const descriptorInput = document.getElementById('descriptor');
+let stream;
+
+function redirectToLocalhostIfNeeded() {
+    const host = window.location.hostname;
+    const localHosts = ['localhost', '127.0.0.1', '::1', '[::1]'];
+    if (localHosts.includes(host)) {
+        return false;
+    }
+
+    if (host === '0.0.0.0' || host === '::' || host === '[::]') {
+        const targetUrl = `${window.location.protocol}//127.0.0.1:${window.location.port}${window.location.pathname}${window.location.search}`;
+        window.location.replace(targetUrl);
+        return true;
+    }
+
+    const isLocalNetworkHost = /^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(host);
+    if (isLocalNetworkHost) {
+        const targetUrl = `https://localhost:5001${window.location.pathname}${window.location.search}`;
+        window.location.replace(targetUrl);
+        return true;
+    }
+
+    return false;
+}
+
+async function requestCameraStream() {
+    const primaryConstraints = {
+        video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 540 } },
+        audio: false
+    };
+    const fallbackConstraints = {
+        video: true,
+        audio: false
+    };
+
+    try {
+        return await navigator.mediaDevices.getUserMedia(primaryConstraints);
+    } catch (error) {
+        if (error.name === 'OverconstrainedError') {
+            return await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+        }
+        throw error;
+    }
+}
+
+async function startEnrollment() {
+    try {
+        if (redirectToLocalhostIfNeeded()) {
+            return;
+        }
+
+        if (!navigator.mediaDevices?.getUserMedia) {
+            statusText.textContent = 'This browser does not support camera access. Please use Chrome or Edge.';
+            return;
+        }
+
+        if (!window.isSecureContext && !['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+            statusText.textContent = 'Camera access requires a secure context. Open this page from localhost or HTTPS.';
+            return;
+        }
+
+        stream = await requestCameraStream();
+        camera.srcObject = stream;
+        camera.muted = true;
+        await camera.play().catch(() => {});
+
+        statusText.textContent = 'Camera ready. Loading face detection...';
+        await Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/'),
+            faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/'),
+            faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/')
+        ]);
+        statusText.textContent = 'Camera ready. Center one face, then capture.';
+        captureButton.disabled = false;
+    } catch (error) {
+        const message = error.name === 'NotAllowedError'
+            ? 'Camera permission was blocked. Allow camera access in the browser and reload.'
+            : error.name === 'NotFoundError'
+                ? 'No camera was found on this device.'
+                : 'Camera or face model unavailable. Check your connection and try again.';
+        statusText.textContent = message;
+        console.error(error);
+    }
+}
+document.getElementById('enroll-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    captureButton.disabled = true;
+    statusText.textContent = 'Checking face...';
+    const result = await faceapi.detectSingleFace(camera, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+    if (!result) {
+        statusText.textContent = 'No clear face found. Move into the guide and try again.';
+        captureButton.disabled = false;
+        return;
+    }
+    descriptorInput.value = JSON.stringify(Array.from(result.descriptor));
+    event.target.submit();
+});
+startEnrollment();
+window.addEventListener('beforeunload', () => stream?.getTracks().forEach(track => track.stop()));
+</script>
+{% endblock %}

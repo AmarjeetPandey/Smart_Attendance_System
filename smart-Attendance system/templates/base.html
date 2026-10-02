@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Smart Attendance{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    {% if session.get('admin_id') %}
+    {% set current_role = session.get('role', 'admin') %}
+    <header class="topbar">
+        <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark">SA</span><span>Smart Attendance<small>Control center</small></span></a>
+        <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">Menu</button>
+        <nav id="main-navigation">
+            {% if current_role == 'student' %}
+                <a class="{% if request.endpoint == 'student_dashboard' %}active{% endif %}" href="{{ url_for('student_dashboard') }}">Student dashboard</a>
+                <a class="{% if request.endpoint == 'attendance_calendar' %}active{% endif %}" href="{{ url_for('attendance_calendar') }}">Attendance calendar</a>
+                <a class="{% if request.endpoint == 'leave_requests' %}active{% endif %}" href="{{ url_for('leave_requests') }}">Leave requests</a>
+            {% elif current_role == 'teacher' %}
+                <a class="{% if request.endpoint == 'teacher_dashboard' %}active{% endif %}" href="{{ url_for('teacher_dashboard') }}">Teacher dashboard</a>
+                <a class="{% if request.endpoint in ['students', 'edit_student'] %}active{% endif %}" href="{{ url_for('students') }}">Students</a>
+                <a class="{% if request.endpoint in ['attendance', 'export_attendance', 'face_attendance'] %}active{% endif %}" href="{{ url_for('attendance') }}">Attendance</a>
+                <a class="{% if request.endpoint == 'leave_requests' %}active{% endif %}" href="{{ url_for('leave_requests') }}">Leave requests</a>
+            {% else %}
+                <a class="{% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">Dashboard</a>
+                <a class="{% if request.endpoint in ['students', 'edit_student'] %}active{% endif %}" href="{{ url_for('students') }}">Students</a>
+                <a class="{% if request.endpoint in ['attendance', 'export_attendance', 'face_attendance'] %}active{% endif %}" href="{{ url_for('attendance') }}">Attendance</a>
+                <a class="{% if request.endpoint == 'profile' %}active{% endif %}" href="{{ url_for('profile') }}">Admin profile</a>
+            {% endif %}
+            <a class="logout" href="{{ url_for('logout') }}">Log out</a>
+        </nav>
+    </header>
+    {% endif %}
+    <main class="page-shell">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+    {% if session.get('admin_id') %}
+    <script>
+    const navToggle = document.querySelector('.nav-toggle');
+    const navigation = document.querySelector('#main-navigation');
+    navToggle?.addEventListener('click', () => {
+        const isOpen = navigation.classList.toggle('open');
+        navToggle.setAttribute('aria-expanded', isOpen);
+    });
+    </script>
+    {% endif %}
+</body>
+</html>

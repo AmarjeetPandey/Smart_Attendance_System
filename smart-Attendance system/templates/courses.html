@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Classes & Subjects | Smart Attendance{% endblock %}
+{% block content %}
+<div class="page-heading">
+    <div>
+        <div class="eyebrow">Directory</div>
+        <h1>Classes &amp; subjects</h1>
+        <p class="muted">Add new class names or subject groups so they are available everywhere in attendance.</p>
+    </div>
+    <a class="btn secondary" href="{{ url_for('students') }}">Back to students</a>
+</div>
+
+<div class="grid-2">
+    <section class="panel">
+        <h2>Add a new class / subject</h2>
+        <form method="POST">
+            <label for="course_name">Name</label>
+            <input id="course_name" name="course_name" placeholder="e.g. BSCS-2024 or Physics" required>
+            <label for="course_type">Type</label>
+            <select id="course_type" name="course_type">
+                <option value="Class">Class</option>
+                <option value="Subject">Subject</option>
+            </select>
+            <div class="form-actions">
+                <button class="btn" type="submit">Add</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <h2>Available entries</h2>
+        </div>
+        {% if courses %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for course in courses %}
+                <tr>
+                    <td>{{ course.name }}</td>
+                    <td>{{ course.type }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="muted">No entries yet. Add a class or subject to begin.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

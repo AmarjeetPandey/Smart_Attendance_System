@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}QR Attendance | Smart Attendance{% endblock %}
+{% block content %}
+<div class="page-heading">
+    <div>
+        <div class="eyebrow">QR attendance / {{ selected_date }}</div>
+        <h1>Generate attendance QR</h1>
+        <p class="muted">Choose the class, subject, and date to generate a one-time attendance QR for students.</p>
+    </div>
+    <a class="btn secondary" href="{{ url_for('attendance', attendance_date=selected_date, course=selected_course or selected_subject) }}">Back to attendance</a>
+</div>
+
+<section class="panel">
+    <div class="panel-head">
+        <div>
+            <h2>Select class and date</h2>
+            <p class="panel-subtitle">Choose the class or subject before generating the attendance QR.</p>
+        </div>
+    </div>
+    <form class="inline-form" method="GET">
+        <div>
+            <label for="course">Class</label>
+            <select id="course" name="course">
+                <option value="" {% if not selected_course %}selected{% endif %}>All classes</option>
+                {% for course in courses %}
+                    <option value="{{ course }}" {% if selected_course == course %}selected{% endif %}>{{ course }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="subject">Subject</label>
+            <select id="subject" name="subject">
+                <option value="" {% if not selected_subject %}selected{% endif %}>All subjects</option>
+                {% for course in courses %}
+                    <option value="{{ course }}" {% if selected_subject == course %}selected{% endif %}>{{ course }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="attendance_date">Date</label>
+            <input id="attendance_date" type="date" name="attendance_date" value="{{ selected_date }}">
+        </div>
+        <button class="btn secondary" type="submit">Generate QR</button>
+    </form>
+</section>
+
+<section class="qr-layout">
+    <div class="panel qr-card">
+        <img class="qr-image" src="data:image/png;base64,{{ qr_data }}" alt="QR code for attendance on {{ selected_date }}">
+        <strong>{{ selected_date }}</strong>
+        <span class="muted">{% if selected_course or selected_subject %}{{ selected_course or selected_subject }}{% else %}All classes{% endif %}</span>
+        <span class="muted">This QR code expires after 24 hours and becomes invalid after one successful scan.</span>
+    </div>
+    <div class="panel qr-instructions">
+        <div class="eyebrow">Student flow</div>
+        <h2>How it works</h2>
+        <ol>
+            <li>Student scans the QR code using their mobile camera.</li>
+            <li>The attendance page opens automatically.</li>
+            <li>Student enters their roll number and registration number.</li>
+            <li>After verification, Present is saved for this date.</li>
+        </ol>
+        <label for="scan-url">Scan URL</label>
+        <input id="scan-url" value="{{ scan_url }}" readonly onclick="this.select()">
+        <p class="panel-subtitle">Use the URL only when the phone and admin computer are on the same reachable network.</p>
+    </div>
+</section>
+{% endblock %}

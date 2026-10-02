@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Student Dashboard | Smart Attendance{% endblock %}
+{% block content %}
+<div class="page-heading">
+    <div>
+        <div class="eyebrow">Student dashboard</div>
+        <h1>My attendance</h1>
+        <p class="muted">Track your attendance percentage and recent record.</p>
+    </div>
+    <a class="btn secondary" href="{{ url_for('dashboard') }}">Back to admin dashboard</a>
+</div>
+
+<section class="panel">
+    <div class="panel-head">
+        <div>
+            <h2>Select student</h2>
+            <p class="panel-subtitle">Choose a student profile to view the attendance summary.</p>
+        </div>
+    </div>
+    <form method="GET" class="history-filter">
+        <label for="student_id">Student</label>
+        <select id="student_id" name="student_id">
+            {% for item in students %}
+                <option value="{{ item.id }}" {% if item.id == selected_student_id %}selected{% endif %}>{{ item.name }} ({{ item.roll_number }})</option>
+            {% endfor %}
+        </select>
+        <button class="btn secondary" type="submit">View</button>
+    </form>
+</section>
+
+{% if student %}
+<div class="stats stats-four">
+    <div class="stat">
+        <div class="stat-label">Total records</div>
+        <div class="stat-value">{{ total_records }}</div>
+        <small class="muted">Entries logged</small>
+    </div>
+    <div class="stat">
+        <div class="stat-label">Present</div>
+        <div class="stat-value">{{ present_records }}</div>
+        <small class="muted">Marked present</small>
+    </div>
+    <div class="stat">
+        <div class="stat-label">Late</div>
+        <div class="stat-value">{{ late_records }}</div>
+        <small class="muted">Late entries</small>
+    </div>
+    <div class="stat">
+        <div class="stat-label">Attendance</div>
+        <div class="stat-value">{{ attendance_percentage }}%</div>
+        <small class="muted">Present ratio</small>
+    </div>
+</div>
+
+<section class="panel">
+    <div class="panel-head">
+        <div>
+            <h2>{{ student.name }}</h2>
+            <p class="panel-subtitle">{{ student.course }} / {{ student.roll_number }}</p>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in history %}
+            <tr>
+                <td>{{ row.attendance_date }}</td>
+                <td><span class="badge {{ row.status|lower }}">{{ row.status }}</span></td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="2">
+                    <div class="empty-state">
+                        <strong>No attendance history yet</strong>
+                        <span>This student has not been marked on any date.</span>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endif %}
+{% endblock %}

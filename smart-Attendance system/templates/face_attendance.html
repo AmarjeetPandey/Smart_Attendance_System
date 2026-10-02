@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Camera attendance | Smart Attendance{% endblock %}
+{% block content %}
+<div class="page-heading"><div><div class="eyebrow">Live recognition</div><h1>Camera attendance</h1><p class="muted">A registered face is matched, then marked Present for the selected date.</p></div><div class="heading-actions"><a class="btn secondary" href="{{ url_for('attendance') }}">Open register</a><a class="btn secondary" href="{{ url_for('dashboard') }}">Dashboard</a></div></div>
+<section class="face-layout">
+    <div class="panel camera-panel">
+        <div class="camera-toolbar"><label for="attendance-date">Attendance date</label><input id="attendance-date" type="date" value="{{ selected_date }}"></div>
+        <div class="camera-frame"><video id="camera" autoplay muted playsinline></video><div class="camera-guide" aria-hidden="true"></div></div>
+        <p id="camera-status" class="camera-status">Loading registered faces...</p>
+        <button class="btn" id="scan-button" type="button" disabled>Scan face</button>
+    </div>
+    <aside class="panel recognition-result" id="result-panel"><div class="result-icon">+</div><div class="eyebrow">Recognition result</div><h2 id="result-name">Waiting for camera</h2><p id="result-details" class="muted">Enroll students first, then scan one face at a time.</p><a class="btn secondary" href="{{ url_for('students') }}">Manage enrolled faces</a></aside>
+</section>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
+<script>
+const camera = document.getElementById('camera');
+const statusText = document.getElementById('camera-status');
+const scanButton = document.getElementById('scan-button');
+const resultName = document.getElementById('result-name');
+const resultDetails = document.getElementById('result-details');
+let stream;
+let faceMatcher;
+
+function redirectToLocalhostIfNeeded() {
+    const host = window.location.hostname;
+    const localHosts = ['localhost', '127.0.0.1', '::1', '[::1]'];
+    if (localHosts.includes(host)) {
+        return false;
+    }
+
+    if (host === '0.0.0.0' || host === '::' || host === '[::]') {
+        const targetUrl = `${window.location.protocol}//127.0.0.1:${window.location.port}${window.location.pathname}${window.location.search}`;
+        window.location.replace(targetUrl);
+        return true;
+    }
+
+    const isLocalNetworkHost = /^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(host);
+    if (isLocalNetworkHost) {
+        const targetUrl = `https://localhost:5001${window.location.pathname}${window.location.search}`;
+        window.location.replace(targetUrl);
+        return true;
+    }
+
+    return false;
+}
+
+async function requestCameraStream() {
+    const primaryConstraints = {
+        video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 540 } },
+        audio: false
+    };
+    const fallbackConstraints = {
+        video: true,
+        audio: false
+    };
+
+    try {
+        return await navigator.mediaDevices.getUserMedia(primaryConstraints);
+    } catch (error) {
+        if (error.name === 'OverconstrainedError') {
+            return await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+        }
+        throw error;
+    }
+}
+
+async function startAttendance() {
+    try {
+        if (redirectToLocalhostIfNeeded()) {
+            return;
+        }
+
+        if (!navigator.mediaDevices?.getUserMedia) {
+            statusText.textContent = 'This browser does not support camera access. Please use Chrome or Edge.';
+            resultName.textContent = 'Camera unavailable';
+            return;
+        }
+
+        if (!window.isSecureContext && !['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+            statusText.textContent = 'Camera access requires a secure context. Open this page from localhost or HTTPS.';
+            resultName.textContent = 'Camera unavailable';
+            return;
+        }
+
+        stream = await requestCameraStream();
+        camera.srcObject = stream;
+        camera.muted = true;
+        await camera.play().catch(() => {});
+
+        statusText.textContent = 'Camera ready. Loading face models...';
+        await Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/'),
+            faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/'),
+            faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/')
+        ]);
+        const response = await fetch('{{ url_for("face_students") }}');
+        const data = await response.json();
+        if (!data.students.length) {
+            statusText.textContent = 'Camera ready. Enroll students before scanning.';
+            resultName.textContent = 'Enrollment required';
+            return;
+        }
+        faceMatcher = new faceapi.FaceMatcher(data.students.map(student => new faceapi.LabeledFaceDescriptors(String(student.id), [new Float32Array(student.descriptor)])), 0.5);
+        window.students = data.students;
+        statusText.textContent = 'Camera ready. Center one registered face and scan.';
+        scanButton.disabled = false;
+    } catch (error) {
+        const message = error.name === 'NotAllowedError'
+            ? 'Camera permission was blocked. Allow camera access in the browser and reload.'
+            : error.name === 'NotFoundError'
+                ? 'No camera was found on this device.'
+                : 'Camera or face model unavailable. Check your connection and try again.';
+        statusText.textContent = message;
+        resultName.textContent = 'Camera unavailable';
+        console.error(error);
+    }
+}
+scanButton.addEventListener('click', async () => {
+    scanButton.disabled = true;
+    statusText.textContent = 'Comparing face with registered students...';
+    const result = await faceapi.detectSingleFace(camera, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+    if (!result) {
+        statusText.textContent = 'No clear face found. Move into the guide and try again.';
+        scanButton.disabled = false;
+        return;
+    }
+    const match = faceMatcher.findBestMatch(result.descriptor);
+    if (match.label === 'unknown') {
+        resultName.textContent = 'Student not recognized';
+        resultDetails.textContent = 'No registered face was close enough to this capture.';
+        statusText.textContent = 'Try again or enroll this student.';
+        scanButton.disabled = false;
+        return;
+    }
+    const student = window.students.find(item => String(item.id) === match.label);
+    const response = await fetch('{{ url_for("save_face_attendance") }}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: student.id, attendance_date: document.getElementById('attendance-date').value }) });
+    const saved = await response.json();
+    if (!response.ok) {
+        resultName.textContent = 'Attendance not saved';
+        resultDetails.textContent = saved.error || 'The server rejected this attendance.';
+    } else {
+        resultName.textContent = saved.student.name;
+        resultDetails.textContent = `Roll number ${saved.student.roll_number} · Present · ${saved.attendance_date}`;
+        statusText.textContent = 'Attendance saved. Scan the next student.';
+    }
+    scanButton.disabled = false;
+});
+startAttendance();
+window.addEventListener('beforeunload', () => stream?.getTracks().forEach(track => track.stop()));
+</script>
+{% endblock %}

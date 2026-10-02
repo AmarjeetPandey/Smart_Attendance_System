@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Leave Requests | Smart Attendance{% endblock %}
+{% block content %}
+<div class="page-heading">
+    <div>
+        <div class="eyebrow">Leave management</div>
+        <h1>Student leave requests</h1>
+        <p class="muted">Review and manage submitted leave requests.</p>
+    </div>
+</div>
+
+<section class="panel">
+    <div class="panel-head">
+        <div>
+            <h2>Submit leave request</h2>
+            <p class="panel-subtitle">Create a new leave request for a student.</p>
+        </div>
+    </div>
+    <form method="POST" class="request-form">
+        <input type="hidden" name="action" value="submit">
+        <div class="form-grid">
+            <div>
+                <label for="student_id">Student</label>
+                <select id="student_id" name="student_id" required>
+                    {% for student in students %}
+                    <option value="{{ student.id }}">{{ student.name }} ({{ student.roll_number }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="date_from">From</label>
+                <input id="date_from" name="date_from" type="date" required>
+            </div>
+            <div>
+                <label for="date_to">To</label>
+                <input id="date_to" name="date_to" type="date" required>
+            </div>
+        </div>
+        <div>
+            <label for="reason">Reason</label>
+            <textarea id="reason" name="reason" rows="4" required></textarea>
+        </div>
+        <button class="btn primary" type="submit">Submit request</button>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="panel-head">
+        <div>
+            <h2>Pending requests</h2>
+            <p class="panel-subtitle">All submitted leave applications.</p>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Student</th>
+                <th>Course</th>
+                <th>Period</th>
+                <th>Reason</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in requests %}
+            <tr>
+                <td>{{ item.name }} ({{ item.roll_number }})</td>
+                <td>{{ item.course }}</td>
+                <td>{{ item.date_from }} to {{ item.date_to }}</td>
+                <td>{{ item.reason }}</td>
+                <td><span class="badge {{ item.status|lower }}">{{ item.status }}</span></td>
+                <td>
+                    {% if role == 'admin' or role == 'teacher' %}
+                    <form method="POST" class="inline-form compact">
+                        <input type="hidden" name="action" value="review">
+                        <input type="hidden" name="leave_id" value="{{ item.id }}">
+                        <select name="status">
+                            <option value="Pending" {% if item.status == 'Pending' %}selected{% endif %}>Pending</option>
+                            <option value="Approved" {% if item.status == 'Approved' %}selected{% endif %}>Approved</option>
+                            <option value="Rejected" {% if item.status == 'Rejected' %}selected{% endif %}>Rejected</option>
+                        </select>
+                        <button class="btn secondary" type="submit">Update</button>
+                    </form>
+                    {% else %}
+                    <span class="muted">Read only</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6">
+                    <div class="empty-state">
+                        <strong>No leave requests</strong>
+                        <span>There are currently no leave requests in the system.</span>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

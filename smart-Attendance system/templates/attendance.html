@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Attendance | Smart Attendance{% endblock %}
+{% block content %}
+<div class="page-heading">
+    <div>
+        <div class="eyebrow">Daily register / {{ selected_date }}</div>
+        <h1>Take attendance</h1>
+        <p class="muted">Select the class, subject, and date, then mark attendance for each student.</p>
+    </div>
+    <div class="heading-actions">
+        <a class="btn" href="{{ url_for('face_attendance', attendance_date=selected_date) }}">Camera attendance</a>
+        <a class="btn secondary" href="{{ url_for('qr_attendance', attendance_date=selected_date, course=selected_course or selected_subject) }}">Generate QR</a>
+        <a class="btn secondary" href="{{ url_for('export_attendance', attendance_date=selected_date) }}">Export this date</a>
+    </div>
+</div>
+
+<form class="attendance-form" method="GET">
+    <div>
+        <label for="course">Class</label>
+        <select id="course" name="course">
+            <option value="" {% if not selected_course %}selected{% endif %}>All classes</option>
+            {% for course in courses %}
+                <option value="{{ course }}" {% if selected_course == course %}selected{% endif %}>{{ course }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label for="subject">Subject</label>
+        <select id="subject" name="subject">
+            <option value="" {% if not selected_subject %}selected{% endif %}>All subjects</option>
+            {% for course in courses %}
+                <option value="{{ course }}" {% if selected_subject == course %}selected{% endif %}>{{ course }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label for="attendance_date">Date</label>
+        <input id="attendance_date" type="date" name="attendance_date" value="{{ selected_date }}">
+    </div>
+    <button class="btn secondary" type="submit">Load students</button>
+</form>
+
+<section class="panel">
+    {% if students %}
+    <form method="POST">
+        <input type="hidden" name="attendance_date" value="{{ selected_date }}">
+        <input type="hidden" name="course" value="{{ selected_course or selected_subject }}">
+        <div class="panel-head">
+            <div>
+                <h2>Student register</h2>
+                <p class="panel-subtitle">{{ attendance_lookup|length }} of {{ students|length }} students already marked</p>
+            </div>
+            <div class="inline-actions">
+                <button class="btn secondary" type="button" onclick="markAllPresent()">Mark all present</button>
+                <a class="btn secondary" href="{{ url_for('students') }}">+ Add New Subject</a>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Roll number</th>
+                    <th>Registration no.</th>
+                    <th>Subject</th>
+                    <th>Status</th>
+                    <th>Method</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in students %}
+                {% set student_record = attendance_lookup.get(student.id, {}) %}
+                <tr>
+                    <td>
+                        <strong>{{ student.name }}</strong>
+                    </td>
+                    <td>{{ student.roll_number }}</td>
+                    <td>{{ student.registration_number }}</td>
+                    <td>{{ student.course }}</td>
+                    <td>
+                        <div class="radio-group">
+                            <label><input type="radio" name="status_{{ student.id }}" value="Present" {% if student_record.get('status', 'Present') == 'Present' %}checked{% endif %}> Present</label>
+                            <label><input type="radio" name="status_{{ student.id }}" value="Absent" {% if student_record.get('status') == 'Absent' %}checked{% endif %}> Absent</label>
+                            <label><input type="radio" name="status_{{ student.id }}" value="Late" {% if student_record.get('status') == 'Late' %}checked{% endif %}> Late</label>
+                        </div>
+                    </td>
+                    <td>
+                        <select name="method_{{ student.id }}">
+                            <option value="Manual" {% if student_record.get('method', 'Manual') == 'Manual' %}selected{% endif %}>Manual</option>
+                            <option value="Camera" {% if student_record.get('method') == 'Camera' %}selected{% endif %}>Camera</option>
+                            <option value="QR" {% if student_record.get('method') == 'QR' %}selected{% endif %}>QR</option>
+                        </select>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="form-actions">
+            <button class="btn" type="submit">Save Attendance</button>
+        </div>
+    </form>
+    {% else %}
+    <div class="empty-state">
+        <h2>No students loaded</h2>
+        <span>Choose a class or add students before recording attendance.</span>
+        <a class="btn" href="{{ url_for('students') }}">Add students</a>
+    </div>
+    {% endif %}
+</section>
+
+<section class="panel history-panel">
+    <div class="panel-head">
+        <h2>Attendance history</h2>
+        <form class="history-filter" method="GET">
+            <input type="date" name="attendance_date" value="{{ selected_date }}">
+            <select name="student_id">
+                <option value="">All students</option>
+                {% for student in students %}
+                <option value="{{ student.id }}" {% if student_filter == student.id|string %}selected{% endif %}>{{ student.name }}</option>
+                {% endfor %}
+            </select>
+            <button class="btn secondary" type="submit">Filter</button>
+        </form>
+    </div>
+    {% if history %}
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Student</th>
+                <th>Roll number</th>
+                <th>Subject</th>
+                <th>Status</th>
+                <th>Method</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in history %}
+            <tr>
+                <td>{{ row.attendance_date }}</td>
+                <td>{{ row.name }}</td>
+                <td>{{ row.roll_number }}</td>
+                <td>{{ row.course }}</td>
+                <td><span class="badge {{ row.status|lower }}">{{ row.status }}</span></td>
+                <td>{{ row.method or 'Manual' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No attendance records match this filter.</p>
+    {% endif %}
+</section>
+
+<script>
+function markAllPresent() {
+    document.querySelectorAll('input[value="Present"]').forEach(function(input) {
+        input.checked = true;
+    });
+}
+</script>
+{% endblock %}
