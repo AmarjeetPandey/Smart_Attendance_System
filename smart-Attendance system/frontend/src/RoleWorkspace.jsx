@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import jsQR from "jsqr";
 import { apiRequest } from "./services/api";
 
 async function postForm(path, event) {
@@ -170,11 +171,119 @@ function QrAttendance({ className, subjects, onSaved }) {
     const data = await response.json();
     if (!response.ok) { setMessage(data.detail || "QR generation failed"); return; }
     setQr(data);
-    setMessage("Students can scan this QR once and verify their registered details.");
+    setMessage("Students can scan this QR from their dashboard until it expires.");
     onSaved?.();
   }
-  return <Panel title="QR attendance" subtitle="Generate a one-time QR for the selected subject"><label htmlFor="qr_attendance_subject">Subject</label><select id="qr_attendance_subject" value={subject} onChange={(event) => setSubject(event.target.value)} disabled={!subjects.length}><option value="">Select subject</option>{subjects.map((item) => <option key={item} value={item}>{item}</option>)}</select><button className="btn" type="button" onClick={generate} disabled={!className || !subject}>Generate QR</button>{qr && <div className="qr-attendance-box"><img src={`data:image/png;base64,${qr.qr_data}`} alt="Attendance QR code" /><input value={qr.scan_url} readOnly onFocus={(event) => event.target.select()} /><small className="muted">{message}</small></div>}{!qr && <p className="muted">{message}</p>}</Panel>;
+  return <Panel title="QR attendance" subtitle="Generate a QR code for the selected subject"><label htmlFor="qr_attendance_subject">Subject</label><select id="qr_attendance_subject" value={subject} onChange={(event) => setSubject(event.target.value)} disabled={!subjects.length}><option value="">Select subject</option>{subjects.map((item) => <option key={item} value={item}>{item}</option>)}</select><button className="btn" type="button" onClick={generate} disabled={!className || !subject}>Generate QR</button>{qr && <div className="qr-attendance-box"><img src={`data:image/png;base64,${qr.qr_data}`} alt="Attendance QR code" /><input value={qr.scan_url} readOnly onFocus={(event) => event.target.select()} /><small className="muted">{message}</small></div>}{!qr && <p className="muted">{message}</p>}</Panel>;
 }
+
+function StudentQrScanner({ onMarked }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const animationRef = useRef(null);
+  const lastScanAtRef = useRef(0);
+  const [scanning, setScanning] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  function stopScanner() {
+    if (animationRef.current !== null) cancelAnimationFrame(animationRef.current);
+    animationRef.current = null;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setScanning(false);
+  }
+
+  async function markAttendance(qrText) {
+    let token;
+    try {
+      const qrUrl = new URL(qrText);
+      if (!qrUrl.pathname.endsWith("/qr/scan")) throw new Error("This is not a classroom attendance QR code.");
+      token = qrUrl.searchParams.get("token");
+      if (!token) throw new Error("This QR code does not contain an attendance token.");
+    } catch (error) {
+      setMessage(error.message || "This is not a valid attendance QR code.");
+      return;
+    }
+
+    setBusy(true);
+    setMessage("QR scanned. Marking your attendance...");
+    try {
+      const form = new FormData();
+      form.append("token", token);
+      const result = await apiRequest("/api/student/qr-attendance", { method: "POST", body: form });
+      setMessage(`Attendance marked Present for ${result.subject} on ${result.attendance_date}.`);
+      onMarked();
+    } catch (error) {
+      setMessage(error.message || "Attendance could not be marked.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function scanFrame() {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!streamRef.current || !video || !canvas) return;
+    if (video.readyState >= video.HAVE_ENOUGH_DATA && video.videoWidth && video.videoHeight && performance.now() - lastScanAtRef.current >= 100) {
+      lastScanAtRef.current = performance.now();
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (context) {
+        const scale = Math.min(1, 720 / Math.max(video.videoWidth, video.videoHeight));
+        canvas.width = Math.round(video.videoWidth * scale);
+        canvas.height = Math.round(video.videoHeight * scale);
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const image = context.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(image.data, image.width, image.height);
+        if (code?.data) {
+          stopScanner();
+          markAttendance(code.data);
+          return;
+        }
+      }
+    }
+    animationRef.current = requestAnimationFrame(scanFrame);
+  }
+
+  async function startScanner() {
+    setMessage("");
+    setBusy(true);
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Camera access requires HTTPS or localhost in a supported browser.");
+      }
+      streamRef.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+      videoRef.current.srcObject = streamRef.current;
+      await videoRef.current.play();
+      setScanning(true);
+      animationRef.current = requestAnimationFrame(scanFrame);
+    } catch (error) {
+      stopScanner();
+      setMessage(error.message || "Camera access failed. Check browser permissions and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => () => {
+    if (animationRef.current !== null) cancelAnimationFrame(animationRef.current);
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
+
+  return <Panel title="Classroom attendance" subtitle="Scan the QR code shown by your teacher to mark attendance">
+    <div className="student-qr-scan">
+      <button className="btn" type="button" onClick={scanning ? stopScanner : startScanner} disabled={busy}>
+        {busy ? "Please wait..." : scanning ? "Close camera" : "Scan To Mark Attendance"}
+      </button>
+      <video ref={videoRef} className={`student-qr-video${scanning ? " is-open" : ""}`} muted playsInline />
+      <canvas ref={canvasRef} className="student-qr-canvas" />
+      <p className="camera-status" role="status">{message || (scanning ? "Point your camera at the teacher's QR code." : "Camera will open after you select scan.")}</p>
+    </div>
+  </Panel>;
+}
+
 function Shell({ session, onLogout, children, links }) {
   return <div className={`workspace role-${session.role}`}><header className="topbar"><a className="brand" href="#home"><span className="brand-mark">SA</span><span>Smart Attendance<small>Control center</small></span></a><nav id="main-navigation">{links.map((link) => <a key={link} href={`#${link.toLowerCase().replaceAll(" ", "-")}`}>{link}</a>)}<button className="logout" onClick={onLogout}>Log out</button></nav></header><main className="page-shell"><div className="page-heading"><div><div className="eyebrow">{session.role} workspace</div><h1>{session.role === "admin" ? "College control center" : `${session.name || session.username} Dashboard`}</h1><p className="muted">Manage the same attendance workflow with role-based access.</p></div><div className="role-badge"><span className="role-dot" />{session.role} view</div></div>{children}</main></div>;
 }
@@ -367,6 +476,7 @@ function StudentWorkspace({ session, onLogout }) {
   const percentage = data.attendance.length ? Math.round(present / data.attendance.length * 100) : 0;
   return <Shell session={session} onLogout={onLogout} links={["My attendance", "My results", "Leave requests"]}>
     {notice && <div className="flash success">{notice}</div>}
+    <StudentQrScanner onMarked={refresh} />
     <div className="stats stats-four">
       <Stat label="Attendance" value={`${percentage}%`} note="Present ratio" />
       <Stat label="Total records" value={data.attendance.length} note="Entries logged" />

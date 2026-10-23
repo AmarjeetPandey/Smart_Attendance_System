@@ -253,6 +253,10 @@ select { border: 1px solid var(--line); border-radius: 6px; font: inherit; paddi
 .qr-verify-shell { background: #fff; border: 1px solid var(--line); border-radius: 10px; margin: 8vh auto 0; max-width: 520px; padding: 34px; }
 .qr-verify-shell h1 { font-size: clamp(30px, 6vw, 44px); }
 .qr-submit { margin-top: 24px; width: 100%; }
+.student-qr-scan { display: grid; gap: 14px; justify-items: start; }
+.student-qr-video { background: #102235; border-radius: 10px; display: none; max-height: 60vh; max-width: 100%; object-fit: cover; width: 480px; }
+.student-qr-video.is-open { display: block; }
+.student-qr-canvas { display: none; }
 .success-mark { align-items: center; background: var(--mint); border-radius: 50%; color: var(--green); display: flex; font-weight: 700; height: 56px; justify-content: center; margin-bottom: 18px; width: 56px; }
 .face-layout { display: grid; gap: 24px; grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr); }
 .camera-panel { min-width: 0; }

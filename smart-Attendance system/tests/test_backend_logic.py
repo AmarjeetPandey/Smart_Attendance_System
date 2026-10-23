@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://test:test@localhost:5432/test")
 
-from backend.main import delete_admin_student, grade_for, hash_password, parse_date, reset_admin_data, teacher_student_scope, update_admin_student, verify_password
+from backend.main import delete_admin_student, grade_for, hash_password, mark_student_qr_attendance, parse_date, record_qr_attendance, reset_admin_data, teacher_student_scope, update_admin_student, verify_password
 
 
 class BackendLogicTests(unittest.TestCase):
@@ -25,6 +25,40 @@ class BackendLogicTests(unittest.TestCase):
         self.assertEqual(parse_date("2026-09-22", "Attendance date"), date(2026, 9, 22))
         with self.assertRaises(Exception):
             parse_date("22/09/2026", "Attendance date")
+
+    def test_student_qr_attendance_uses_logged_in_student(self):
+        request = SimpleNamespace(session={"account_id": 42, "role": "student", "login_at": datetime.now().timestamp()})
+        expected = {"status": "Present"}
+        with patch("backend.main.record_qr_attendance", return_value=expected) as record:
+            result = mark_student_qr_attendance(request, "signed-token")
+        self.assertEqual(result, expected)
+        record.assert_called_once_with("signed-token", student_id=42)
+
+    def test_class_qr_can_be_used_by_multiple_students(self):
+        def result_row(row):
+            result = MagicMock()
+            result.mappings.return_value.first.return_value = row
+            return result
+
+        qr_session = {"id": 1, "attendance_date": date(2026, 9, 22), "course": "Class 1", "course_id": 7, "subject": "Math"}
+        payload = {"token_id": "token-id", "attendance_date": "2026-09-22", "course": "Class 1", "subject": "Math"}
+        with patch("backend.main.qr_serializer.loads", return_value=payload):
+            for student_id in (41, 42):
+                connection = MagicMock()
+                connection.execute.side_effect = [
+                    result_row(qr_session),
+                    result_row({"id": student_id, "name": f"Student {student_id}", "roll_number": str(student_id), "course_id": 7}),
+                    result_row(None),
+                    result_row({"id": student_id + 100}),
+                    MagicMock(),
+                    MagicMock(),
+                ]
+                transaction = MagicMock()
+                transaction.__enter__.return_value = connection
+                with patch("backend.main.engine.begin", return_value=transaction):
+                    result = record_qr_attendance("signed-token", student_id=student_id)
+                self.assertEqual(result["student"]["id"], student_id)
+                self.assertEqual(result["method"], "QR")
 
     def test_teacher_scope_is_limited_to_assigned_classes(self):
         scope = teacher_student_scope()

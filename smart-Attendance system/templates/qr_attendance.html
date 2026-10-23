@@ -5,7 +5,7 @@
     <div>
         <div class="eyebrow">QR attendance / {{ selected_date }}</div>
         <h1>Generate attendance QR</h1>
-        <p class="muted">Choose the class, subject, and date to generate a one-time attendance QR for students.</p>
+        <p class="muted">Choose the class, subject, and date to generate an attendance QR for the class. Students can scan it until it expires.</p>
     </div>
     <a class="btn secondary" href="{{ url_for('attendance', attendance_date=selected_date, course=selected_course or selected_subject) }}">Back to attendance</a>
 </div>

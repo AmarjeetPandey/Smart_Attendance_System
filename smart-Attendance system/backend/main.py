@@ -984,26 +984,39 @@ def create_qr_session(request: Request, attendance_date: str = "", course: str =
     return {"token": token, "scan_url": scan_url, "qr_data": base64.b64encode(buffer.getvalue()).decode("ascii"), "attendance_date": attendance_date.isoformat(), "course": course, "subject": subject}
 
 
-@api.post("/api/qr/verify")
-def verify_qr_attendance(token: str = Form(...), roll_number: str = Form(...), registration_number: str = Form(...)):
+def record_qr_attendance(token: str, student_id: int | None = None, roll_number: str = "", registration_number: str = ""):
     try:
         payload = qr_serializer.loads(token, max_age=int(os.getenv("QR_MAX_AGE_SECONDS", "86400")))
     except (BadSignature, TypeError):
         raise HTTPException(status_code=400, detail="QR code is invalid or expired")
     with engine.begin() as connection:
-        qr_session = connection.execute(text("SELECT id, used, attendance_date, course, course_id, subject FROM qr_sessions WHERE token_id=:token_id FOR UPDATE"), {"token_id": payload.get("token_id")}).mappings().first()
-        if not qr_session or qr_session["used"]:
-            raise HTTPException(status_code=400, detail="QR code is already used or invalid")
-        student = connection.execute(text("SELECT id, name, roll_number FROM students WHERE roll_number=:roll AND registration_number=:registration"), {"roll": roll_number.strip(), "registration": registration_number.strip()}).mappings().first()
+        qr_session = connection.execute(text("SELECT id, attendance_date, course, course_id, subject FROM qr_sessions WHERE token_id=:token_id FOR UPDATE"), {"token_id": payload.get("token_id")}).mappings().first()
+        if not qr_session:
+            raise HTTPException(status_code=400, detail="QR code is invalid")
+        if student_id is not None:
+            student = connection.execute(text("SELECT id, name, roll_number, course_id FROM students WHERE id=:id"), {"id": student_id}).mappings().first()
+        else:
+            student = connection.execute(text("SELECT id, name, roll_number, course_id FROM students WHERE roll_number=:roll AND registration_number=:registration"), {"roll": roll_number.strip(), "registration": registration_number.strip()}).mappings().first()
         if not student:
-            raise HTTPException(status_code=404, detail="Student details did not match")
-        if qr_session["course_id"] and connection.execute(text("SELECT 1 FROM students WHERE id=:id AND course_id=:course_id"), {"id": student["id"], "course_id": qr_session["course_id"]}).first() is None:
+            raise HTTPException(status_code=404, detail="Student profile was not found" if student_id is not None else "Student details did not match")
+        if qr_session["course_id"] and student["course_id"] != qr_session["course_id"]:
             raise HTTPException(status_code=403, detail="Student is not enrolled in this class")
         old = connection.execute(text("SELECT id, status FROM attendance WHERE student_id = :student_id AND attendance_date = :date AND subject = :subject"), {"student_id": student["id"], "date": qr_session["attendance_date"], "subject": qr_session["subject"]}).mappings().first()
         attendance = connection.execute(text("INSERT INTO attendance (student_id, attendance_date, subject, status, method) VALUES (:student_id, :date, :subject, 'Present', 'QR') ON CONFLICT (student_id, attendance_date, subject) DO UPDATE SET status='Present', method='QR' RETURNING id"), {"student_id": student["id"], "date": qr_session["attendance_date"], "subject": qr_session["subject"]}).mappings().first()
         connection.execute(text("INSERT INTO attendance_audit_logs (attendance_id, student_id, attendance_date, old_status, new_status, method, changed_by_role, changed_by_id) VALUES (:attendance_id, :student_id, :date, :old_status, 'Present', 'QR', 'student', :student_id)"), {"attendance_id": attendance["id"], "student_id": student["id"], "date": qr_session["attendance_date"], "old_status": old["status"] if old else None})
         connection.execute(text("UPDATE qr_sessions SET used=TRUE, used_by_student_id=:student_id, used_at=CURRENT_TIMESTAMP WHERE id=:id"), {"student_id": student["id"], "id": qr_session["id"]})
     return {"student": dict(student), "status": "Present", "attendance_date": str(qr_session["attendance_date"]), "method": "QR", "subject": qr_session["subject"]}
+
+
+@api.post("/api/qr/verify")
+def verify_qr_attendance(token: str = Form(...), roll_number: str = Form(...), registration_number: str = Form(...)):
+    return record_qr_attendance(token, roll_number=roll_number, registration_number=registration_number)
+
+
+@api.post("/api/student/qr-attendance")
+def mark_student_qr_attendance(request: Request, token: str = Form(...)):
+    require_role(request, "student")
+    return record_qr_attendance(token, student_id=request.session["account_id"])
 
 
 @api.get("/api/teacher/attendance/audit")

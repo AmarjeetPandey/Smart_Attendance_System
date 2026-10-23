@@ -119,7 +119,7 @@ npm run build
 
 - Admin: teachers, classes, student accounts, exam schedules, and teacher-course assignments
 - Teacher: assigned class-course student directory, attendance, results, leave review, QR, and face enrollment
-- Student: attendance, results, and leave requests
+- Student: scan a teacher's classroom QR code from the dashboard to mark attendance, view attendance and results, and submit leave requests
 
 Teachers must be assigned to courses by an admin before they can manage students or attendance for those courses. Attendance changes are stored in `attendance_audit_logs`.
 Attendance policies, notifications, organization seed data, and relational course links are applied by migrations `003_production_controls.sql` and `004_relational_exam_qr_courses.sql`, and automatically bootstrapped by the API for existing PostgreSQL databases.
